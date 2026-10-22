@@ -12,8 +12,10 @@ import reactor.util.context.Context;
 import java.util.UUID;
 
 /**
- * Generates or propagates the X-Trace-Id header, echoes it on every response and
- * exposes it to reactive code through the Reactor context (traceId).
+ * Generates or propagates the X-Trace-Id header, echoes it on every response
+ * (including error responses) and exposes it to reactive code through the
+ * Reactor context (traceId). With automatic context propagation enabled, the
+ * id also lands in the MDC on every signal thread (TraceIdMdcAccessor).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

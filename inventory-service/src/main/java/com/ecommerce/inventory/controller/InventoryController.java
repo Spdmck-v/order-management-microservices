@@ -36,12 +36,12 @@ public class InventoryController {
     }
 
     @PostMapping(value = "/reserve", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<StockOperationResponse> reserve(@Valid @RequestBody Mono<ReserveRequest> request) {
-        return request.flatMap(inventoryService::reserve);
+    public Mono<StockOperationResponse> reserve(@Valid @RequestBody ReserveRequest request) {
+        return inventoryService.reserve(request);
     }
 
     @PostMapping(value = "/release", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<StockOperationResponse> release(@Valid @RequestBody Mono<ReleaseRequest> request) {
-        return request.flatMap(inventoryService::release);
+    public Mono<StockOperationResponse> release(@Valid @RequestBody ReleaseRequest request) {
+        return inventoryService.release(request);
     }
 }

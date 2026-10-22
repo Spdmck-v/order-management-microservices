@@ -3,11 +3,13 @@ package com.ecommerce.inventory.exception;
 import com.ecommerce.inventory.config.TraceIdWebFilter;
 import com.ecommerce.inventory.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
@@ -43,9 +45,29 @@ public class GlobalExceptionHandler {
                 ex.getReason() == null ? "Invalid request body" : ex.getReason());
     }
 
+    @ExceptionHandler({ConversionFailedException.class, MethodArgumentTypeMismatchException.class})
+    public Mono<ResponseEntity<ErrorResponse>> handleTypeMismatch(Exception ex) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.INVALID_REQUEST,
+                "Invalid request parameter: %s".formatted(ex.getMessage()));
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public Mono<ResponseEntity<ErrorResponse>> handleResponseStatus(ResponseStatusException ex) {
-        return build(HttpStatus.resolve(ex.getStatusCode().value()), ErrorCode.INTERNAL_ERROR, ex.getMessage());
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+        if (status == null) {
+            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        }
+        if (status.is2xxSuccessful()) {
+            // Should never be thrown as an error; keep semantics of the code.
+            return buildInternal("Unexpected response status exception", ex);
+        }
+        ErrorCode code = switch (status) {
+            case BAD_REQUEST -> ErrorCode.INVALID_REQUEST;
+            case UNAUTHORIZED -> ErrorCode.INVALID_TOKEN;
+            case NOT_FOUND -> ErrorCode.PRODUCT_NOT_FOUND;
+            default -> ErrorCode.INTERNAL_ERROR;
+        };
+        return build(status, code, ex.getReason() == null ? ex.getMessage() : ex.getReason());
     }
 
     @ExceptionHandler(Exception.class)
@@ -56,6 +78,12 @@ public class GlobalExceptionHandler {
 
     private Mono<ResponseEntity<ErrorResponse>> build(HttpStatus status, ErrorCode code, String message) {
         return Mono.deferContextual(ctx -> Mono.just(construct(status, code, message, ctx)));
+    }
+
+    private Mono<ResponseEntity<ErrorResponse>> buildInternal(String message, Exception cause) {
+        log.error("Unhandled exception", cause);
+        return Mono.deferContextual(ctx ->
+                Mono.just(construct(HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR, message, ctx)));
     }
 
     private ResponseEntity<ErrorResponse> construct(HttpStatus status, ErrorCode code, String message, ContextView ctx) {

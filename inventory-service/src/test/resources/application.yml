@@ -1,4 +1,6 @@
 spring:
+  reactor:
+    context-propagation: auto
   r2dbc:
     url: r2dbc:postgresql://localhost:5434/inventory_db_test
     username: postgres
