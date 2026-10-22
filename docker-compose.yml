@@ -37,6 +37,28 @@ services:
       timeout: 5s
       retries: 5
 
+  inventory-service:
+    build: ./inventory-service
+    image: order-mgmt/inventory-service:latest
+    container_name: inventory-service
+    environment:
+      INVENTORY_DB_HOST: ${INVENTORY_DB_HOST:-inventory-db}
+      INVENTORY_DB_PORT: ${INVENTORY_DB_PORT:-5432}
+      INVENTORY_DB_NAME: ${INVENTORY_DB_NAME:-inventory_db}
+      INVENTORY_DB_USER: ${INVENTORY_DB_USER:-postgres}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:-postgres}
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.1
     container_name: keycloak

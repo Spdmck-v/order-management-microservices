@@ -55,7 +55,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .flatMap(stockByProduct -> productRepository.findAll(Sort.by(Sort.Direction.ASC, "sku"))
                         .map(product -> productMapper.toResponse(product,
                                 stockByProduct.getOrDefault(product.getId(), Stock.EMPTY)))
-                        .collectSortedList());
+                        .collectList());
     }
 
     @Override
