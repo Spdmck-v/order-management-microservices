@@ -1,0 +1,30 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: inventory-service
+  r2dbc:
+    url: r2dbc:postgresql://${INVENTORY_DB_HOST:localhost}:${INVENTORY_DB_PORT:5434}/${INVENTORY_DB_NAME:inventory_db}
+    username: ${INVENTORY_DB_USER:postgres}
+    password: ${INVENTORY_DB_PASSWORD:postgres}
+    pool:
+      enabled: true
+      initial-size: 2
+      max-size: 10
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui
