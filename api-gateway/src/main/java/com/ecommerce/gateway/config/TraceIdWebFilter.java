@@ -41,7 +41,14 @@ public class TraceIdWebFilter implements WebFilter {
                         .build())
                 .build();
         mutated.getAttributes().put(ATTRIBUTE_KEY, traceId);
-        mutated.getResponse().getHeaders().set(HEADER, traceId);
+        // Echo X-Trace-Id exactly once: if a downstream service already echoed it,
+        // keep that one; otherwise (gateway-generated errors) add it here at commit time.
+        mutated.getResponse().beforeCommit(() -> {
+            if (mutated.getResponse().getHeaders().getOrEmpty(HEADER).isEmpty()) {
+                mutated.getResponse().getHeaders().set(HEADER, traceId);
+            }
+            return Mono.empty();
+        });
         long start = System.nanoTime();
         String method = mutated.getRequest().getMethod().name();
         String path = mutated.getRequest().getPath().value();

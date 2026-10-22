@@ -7,9 +7,9 @@ spring:
   reactor:
     context-propagation: auto
   r2dbc:
-    url: r2dbc:postgresql://${ORDER_DB_HOST:localhost}:${ORDER_DB_PORT:5433}/${ORDER_DB_NAME:orders_db}
-    username: ${ORDER_DB_USER:postgres}
-    password: ${ORDER_DB_PASSWORD:postgres}
+    url: r2dbc:postgresql://${ORDERS_DB_HOST:localhost}:${ORDERS_DB_PORT:5433}/${ORDERS_DB_NAME:orders_db}
+    username: ${ORDERS_DB_USER:postgres}
+    password: ${ORDERS_DB_PASSWORD:postgres}
     pool:
       enabled: true
       initial-size: 2
