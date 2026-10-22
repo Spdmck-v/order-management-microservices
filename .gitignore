@@ -1,0 +1,24 @@
+# Java/Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Docker
+.env
+
+# Logs
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
