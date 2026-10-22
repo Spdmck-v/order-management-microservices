@@ -108,6 +108,33 @@ services:
       timeout: 5s
       retries: 10
 
+  api-gateway:
+    build: ./api-gateway
+    image: order-mgmt/api-gateway:latest
+    container_name: api-gateway
+    environment:
+      JWK_SET_URI: ${JWK_SET_URI:-http://keycloak:8080/realms/orders-realm/protocol/openid-connect/certs}
+      EXPECTED_ISSUER: ${EXPECTED_ISSUER:-http://localhost:8180/realms/orders-realm}
+      ORDER_SERVICE_URI: ${ORDER_SERVICE_URI:-http://order-service:8081}
+      INVENTORY_SERVICE_URI: ${INVENTORY_SERVICE_URI:-http://inventory-service:8082}
+    ports:
+      - "8080:8080"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 networks:
   ecommerce-net:
     driver: bridge

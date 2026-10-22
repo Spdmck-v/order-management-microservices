@@ -1,0 +1,32 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  reactor:
+    context-propagation: auto
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: order-service
+              uri: ${ORDER_SERVICE_URI:http://order-service:8081}
+              predicates:
+                - Path=/api/orders/**
+            - id: inventory-service
+              uri: ${INVENTORY_SERVICE_URI:http://inventory-service:8082}
+              predicates:
+                - Path=/api/inventory/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  security:
+    jwk-set-uri: ${JWK_SET_URI:http://keycloak:8080/realms/orders-realm/protocol/openid-connect/certs}
+    expected-issuer: ${EXPECTED_ISSUER:http://localhost:8180/realms/orders-realm}
