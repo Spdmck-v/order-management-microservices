@@ -24,5 +24,12 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Postman
+# Postman generated folders (keep only the collection and environment JSON at postman/ root)
 .postman/
+postman/collections/
+postman/documents/
+postman/environments/
+postman/flows/
+postman/globals/
+postman/mocks/
+postman/specs/

@@ -1,0 +1,30 @@
+%% Diagrama 07 - Secuencia: cancelar pedido
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant G as API Gateway :8080
+    participant O as Order Service :8081
+    participant I as Inventory Service :8082
+    participant DB as orders_db :5433
+
+    C->>G: POST /api/orders/{id}/cancel (Bearer JWT)
+    Note over G: Valida JWT
+    G->>O: POST /api/orders/{id}/cancel (X-Trace-Id)
+    O->>O: OrderStateMachine.validate(from, CANCELLED)
+
+    alt desde CANCELLED o FAILED
+        O-->>G: 409 INVALID_STATE_TRANSITION
+    end
+
+    alt desde PENDING (sin reserva que liberar)
+        O->>DB: Tx: UPDATE order (CANCELLED) + history (PENDING -> CANCELLED, "Cancelled by customer")
+    else desde CONFIRMED (libera stock)
+        O->>I: POST /api/inventory/release {orderId, items[]}
+        I->>I: UPDATE stock SET available=available+qty, reserved=reserved-qty<br/>WHERE product_id=? AND reserved_quantity >= qty (atómico)
+        I->>I: UPDATE stock_reservations (status = RELEASED)
+        I-->>O: 200 OK
+        O->>DB: Tx: UPDATE order (CANCELLED) + history (CONFIRMED -> CANCELLED, "Cancelled by customer")
+    end
+
+    O-->>G: 200 OK {id, status: CANCELLED}
+    G-->>C: 200 OK + X-Trace-Id

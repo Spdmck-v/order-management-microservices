@@ -1,0 +1,22 @@
+%% Diagrama 04 - Máquina de estados del pedido
+stateDiagram-v2
+    direction LR
+    [*] --> PENDING: POST /api/orders (Tx 1 + history)
+    PENDING --> CONFIRMED: stock reservado (history: "Stock reserved")
+    PENDING --> FAILED: stock insuficiente (history: "Insufficient stock") / Inventory caído (history: "Inventory unavailable")
+    PENDING --> CANCELLED: POST /{id}/cancel sin llamada a Inventory
+    CONFIRMED --> CANCELLED: POST /{id}/cancel + release en Inventory
+    CANCELLED --> [*]
+    FAILED --> [*]
+
+    note right of PENDING
+        Transiciones inválidas (OrderStateMachineImpl) => 409
+        CANCELLED a CANCELLED
+        FAILED a CANCELLED
+        CONFIRMED a CONFIRMED
+    end note
+
+    note right of CANCELLED
+        Cada transición guarda una fila en
+        order_status_history (from, to, reason, trace_id, changed_at)
+    end note

@@ -12,9 +12,9 @@ Estas reglas son obligatorias. Si algo del encargo las contradice, avisa antes d
 
 \- Java 21, Maven (un pom por servicio, sin multi-módulo padre obligatorio)
 
-\- Spring Boot 3.x estable, WebFlux (reactivo) en los tres servicios
+\- Spring Boot 4.1.x (4.1.1), WebFlux (reactivo) en los tres servicios
 
-\- API Gateway: Spring Cloud Gateway (versión de Spring Cloud compatible con la de Boot)
+\- API Gateway: Spring Cloud Gateway con Spring Cloud 2025.1.x (2025.1.3), compatible con Boot 4.1
 
 \- Seguridad: Spring Security OAuth2 Resource Server (JWT), Keycloak en Docker
 
@@ -26,7 +26,7 @@ Estas reglas son obligatorias. Si algo del encargo las contradice, avisa antes d
 
 \- AOP: un aspecto de logging por servicio (entrada/salida de servicios, duración)
 
-\- Docs: springdoc-openapi (WebFlux) en Order e Inventory
+\- Docs: springdoc-openapi (WebFlux) en Order e Inventory. Swagger UI agregada en `http://localhost:8080/swagger-ui.html`
 
 \- Tests: JUnit 5, Mockito, StepVerifier, WebTestClient
 
@@ -82,7 +82,7 @@ Gateway 8080 | Order 8081 (interno) | Inventory 8082 (interno) | Keycloak 8180 |
 
 
 
-Códigos: `ORDER\_NOT\_FOUND`(404), `INVALID\_REQUEST`(400), `STOCK\_INSUFFICIENT`(409), `INVALID\_STATE\_TRANSITION`(409), `INVALID\_TOKEN`(401), `PRODUCT\_NOT\_FOUND`(404), `INTERNAL\_ERROR`(500).
+Códigos: `ORDER\_NOT\_FOUND`(404), `INVALID\_REQUEST`(400), `STOCK\_INSUFFICIENT`(409), `INVALID\_STATE\_TRANSITION`(409), `INVALID\_TOKEN`(401), `PRODUCT\_NOT\_FOUND`(404), `INVENTORY\_UNAVAILABLE`(503), `INTERNAL\_ERROR`(500).
 
 Manejo global con un handler por servicio; el 401 del Gateway usa el mismo formato.
 
@@ -105,6 +105,8 @@ PENDING, CONFIRMED, CANCELLED, FAILED.
 \- Orders: `POST /api/orders`, `GET /api/orders/{id}`, `GET /api/orders/{id}/history`, `POST /api/orders/{id}/cancel`
 
 \- Inventory: `GET /api/inventory/products`, `GET /api/inventory/products/{id}`, `POST /api/inventory/reserve`, `POST /api/inventory/release`
+
+\- Docs (agregadas por el Gateway): `/docs/order-service/v3/api-docs/**` y `/docs/inventory-service/v3/api-docs/**`, servidas por el Swagger UI del Gateway en `http://localhost:8080/swagger-ui.html`.
 
 \- La reserva descuenta stock de forma ATÓMICA (UPDATE condicional en SQL, sin leer-y-escribir) e incluye orderId para idempotencia.
 

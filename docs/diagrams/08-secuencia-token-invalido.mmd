@@ -1,0 +1,23 @@
+%% Diagrama 08 - Secuencia: token ausente, expirado o con issuer incorrecto
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant G as API Gateway :8080
+    participant K as Keycloak :8180
+    participant O as Order Service :8081
+
+    C->>G: GET /api/orders/{id} sin Authorization
+    Note over G: InvalidTokenEntryPoint (bearerTokenConverter no obtiene token)
+    G-->>C: 401 {code: "INVALID_TOKEN", message: "Missing or invalid bearer token", traceId}
+
+    C->>G: GET /api/orders/{id} con Token inválido / expirado
+    Note over G: JwtDecoder valida firma contra JWK Set de Keycloak
+    G->>K: GET /realms/orders-realm/protocol/openid-connect/certs (JWK Set cacheada)
+    Note over G: IssuerTokenValidator compara el claim iss con<br/>app.security.expected-issuer<br/>JwtTimestampValidator valida exp
+    G-->>C: 401 {code: "INVALID_TOKEN", message, traceId}
+
+    C->>G: POST /api/orders con token válido
+    Note over G: JWT válido: enruta al servicio
+    G->>O: POST /api/orders (X-Trace-Id)
+    O-->>G: 201 Created
+    G-->>C: 201 Created

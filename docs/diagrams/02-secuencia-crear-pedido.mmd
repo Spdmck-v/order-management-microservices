@@ -1,0 +1,21 @@
+%% Diagrama 02 - Secuencia: crear pedido con stock suficiente
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant G as API Gateway :8080
+    participant O as Order Service :8081
+    participant I as Inventory Service :8082
+    participant DB as orders_db :5433
+
+    C->>G: POST /api/orders (Bearer JWT, X-Trace-Id?)
+    Note over G: Valida JWT (firma, exp, issuer)
+    G->>O: POST /api/orders (X-Trace-Id del cliente o generado)
+    O->>DB: Tx 1: INSERT order (PENDING) + INSERT order_items + INSERT order_status_history (null -> PENDING)
+    O->>I: POST /api/inventory/reserve {orderId, items[]} (WebClient, X-Trace-Id, timeout 3s)
+    I->>I: UPDATE stock SET available=available-qty, reserved=reserved+qty<br/>WHERE product_id=? AND available_quantity >= qty (atómico)
+    I->>I: INSERT stock_reservations (order_id, product_id, qty, RESERVED)
+    I-->>O: 200 OK (idempotencia por orderId)
+    Note over O: La llamada HTTP ocurre FUERA de la transacción
+    O->>DB: Tx 2: UPDATE order (CONFIRMED) + INSERT history (PENDING -> CONFIRMED, "Stock reserved")
+    O-->>G: 201 Created {id, status: CONFIRMED, items[], totalAmount}
+    G-->>C: 201 Created + X-Trace-Id

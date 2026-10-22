@@ -1,0 +1,27 @@
+%% Diagrama 03 - Secuencia: crear pedido sin stock
+sequenceDiagram
+    autonumber
+    participant C as Cliente
+    participant G as API Gateway :8080
+    participant O as Order Service :8081
+    participant I as Inventory Service :8082
+    participant DB as orders_db :5433
+
+    C->>G: POST /api/orders (Bearer JWT)
+    Note over G: Valida JWT
+    G->>O: POST /api/orders (X-Trace-Id)
+    O->>DB: Tx 1: INSERT order (PENDING) + items + history (null -> PENDING)
+    O->>I: POST /api/inventory/reserve {orderId, items[]}
+    Note over I: UPDATE condicional NO actualiza ninguna fila<br/>(available_quantity < qty)
+    I-->>O: 409 STOCK_INSUFFICIENT
+    Note over O: onErrorResume(...): la orden NO se revierte,<br/>se marca FAILED en su propia transacción
+    O->>DB: Tx 2: UPDATE order (FAILED) + INSERT history (PENDING -> FAILED, "Insufficient stock")
+    O-->>G: 409 STOCK_INSUFFICIENT
+    G-->>C: 409 {timestamp, status, code: "STOCK_INSUFFICIENT", message, traceId}
+
+    alt Inventory no responde o timeout (3 s)
+        I--xO: 5xx / timeout / conexión rechazada
+        O->>DB: UPDATE order (FAILED) + history (PENDING -> FAILED, "Inventory unavailable")
+        O-->>G: 503 INVENTORY_UNAVAILABLE
+        G-->>C: 503 {code: "INVENTORY_UNAVAILABLE"}
+    end

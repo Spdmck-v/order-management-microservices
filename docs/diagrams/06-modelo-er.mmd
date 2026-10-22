@@ -1,0 +1,54 @@
+%% Diagrama 06 - Modelo ER (dos bases de datos independientes)
+erDiagram
+    orders {
+        UUID id PK
+        VARCHAR(100) customer_id
+        VARCHAR(16) status
+        NUMERIC(12_2) total_amount
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+    order_items {
+        BIGSERIAL id PK
+        UUID order_id FK
+        UUID product_id "referencia lógica, sin FK entre bases"
+        INTEGER quantity
+        NUMERIC(12_2) unit_price
+    }
+    order_status_history {
+        BIGSERIAL id PK
+        UUID order_id FK
+        VARCHAR(16) from_status
+        VARCHAR(16) to_status
+        VARCHAR(255) reason
+        VARCHAR(64) trace_id
+        TIMESTAMPTZ changed_at
+    }
+    orders ||--o{ order_items : "contiene"
+    orders ||--o{ order_status_history : "registra"
+
+    products {
+        UUID id PK
+        VARCHAR(64) sku
+        VARCHAR(255) name
+        NUMERIC(12_2) price
+        BOOLEAN active
+    }
+    stock {
+        UUID product_id PK, FK
+        INTEGER available_quantity
+        INTEGER reserved_quantity
+        BIGINT version
+    }
+    stock_reservations {
+        UUID order_id "PK compuesta (order_id, product_id)"
+        UUID product_id FK
+        INTEGER quantity
+        VARCHAR(16) status
+    }
+    products ||--|| stock : "tiene"
+    products ||--o{ stock_reservations : "reservas"
+
+    note "Cada servicio tiene su propia BD (order_db 5433 e inventory_db 5434). order_items.product_id y stock_reservations.order_id son referencias lógicas entre servicios: no hay FK entre bases."
+
+    note "stock_reservations.status: RESERVED / RELEASED (idempotencia por orderId)."

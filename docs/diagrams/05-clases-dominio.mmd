@@ -1,0 +1,99 @@
+%% Diagrama 05 - Clases de dominio (order-service e inventory-service)
+%% Secciones: [order-service] clases de dominio, state machine y cliente de Inventory
+classDiagram
+    direction TB
+
+    class Order {
+        +UUID id
+        +String customerId
+        +OrderStatus status
+        +BigDecimal totalAmount
+        +Instant createdAt
+        +Instant updatedAt
+    }
+    class OrderItem {
+        +Long id
+        +UUID orderId
+        +UUID productId
+        +Integer quantity
+        +BigDecimal unitPrice
+    }
+    class OrderStatusHistory {
+        +Long id
+        +UUID orderId
+        +OrderStatus fromStatus
+        +OrderStatus toStatus
+        +String reason
+        +String traceId
+        +Instant changedAt
+    }
+    class OrderStatus {
+        <<enumeration>>
+        PENDING
+        CONFIRMED
+        CANCELLED
+        FAILED
+    }
+    class OrderStateMachine {
+        <<interface>> Strategy
+        +validate(OrderStatus from, OrderStatus to) OrderStatus
+    }
+    class OrderStateMachineImpl {
+        +validate(from, to) OrderStatus
+    }
+    class InventoryClient {
+        <<interface>> order-service
+        +reserve(UUID orderId, List~InventoryReservationItem~ items) Mono~Void~
+        +release(UUID orderId, List~InventoryReservationItem~ items) Mono~Void~
+    }
+    class InventoryClientImpl
+
+    class Product {
+        <<inventory-service>>
+        +UUID id
+        +String sku
+        +String name
+        +BigDecimal price
+        +boolean active
+    }
+    class Stock {
+        <<inventory-service>>
+        +UUID productId
+        +Integer availableQuantity
+        +Integer reservedQuantity
+        +Long version
+    }
+    class StockReservation {
+        <<inventory-service>>
+        +UUID orderId
+        +UUID productId
+        +Integer quantity
+        +ReservationStatus status
+    }
+    class ReservationStatus {
+        <<enumeration>> inventory-service
+        RESERVED
+        RELEASED
+    }
+    class AtomicStockOperations {
+        +reserveStock(UUID productId, int qty) Mono~Long~
+        +releaseStock(UUID productId, int qty) Mono~Long~
+    }
+    class InventoryService {
+        <<interface>> inventory-service
+        +listProducts() Mono~List~ProductResponse~~
+        +getProduct(UUID id) Mono~ProductResponse~
+        +reserve(ReserveRequest request) Mono~StockOperationResponse~
+        +release(ReleaseRequest request) Mono~StockOperationResponse~
+    }
+
+    Order --> "1..*" OrderItem
+    Order --> "1..*" OrderStatusHistory
+    Order --> OrderStatus
+    InventoryClient <|.. InventoryClientImpl
+    OrderStateMachine <|.. OrderStateMachineImpl
+    Product "1" -- "1" Stock
+    Product "1" -- "*" StockReservation
+    Product --> ReservationStatus
+    InventoryService ..> AtomicStockOperations
+    StockReservation --> ReservationStatus

@@ -1,0 +1,37 @@
+%% Diagrama 01 - Arquitectura de componentes
+flowchart LR
+    client["Cliente / Postman<br/>Bearer JWT"]
+
+    subgraph public["Punto público único"]
+        gw["API Gateway :8080<br/>spring-cloud-gateway-server-webflux<br/>- Valida JWT (JWK Set + issuer)<br/>- Enruta /api/orders/** y /api/inventory/**<br/>- Genera o propaga X-Trace-Id"]
+    end
+
+    subgraph auth["Autenticación"]
+        kc["Keycloak :8180<br/>realm: orders-realm<br/>client: postman-client<br/>usuario: testuser"]
+    end
+
+    subgraph order["Order Service :8081 (interno)"]
+        os["OrderController<br/>OrderService<br/>OrderStateMachine (State/Strategy)<br/>InventoryClient (WebClient)<br/>ServiceLoggingAspect (AOP)"]
+        odb[("PostgreSQL<br/>orders_db :5433<br/>orders / order_items<br/>order_status_history")]
+    end
+
+    subgraph inventory["Inventory Service :8082 (interno)"]
+        inv["InventoryController<br/>InventoryService<br/>AtomicStockOperations<br/>ServiceLoggingAspect (AOP)"]
+        idb[("PostgreSQL<br/>inventory_db :5434<br/>products / stock<br/>stock_reservations")]
+    end
+
+    client -->|HTTPS/HTTP + JWT| gw
+    client -->|POST /realms/orders-realm<br/>/protocol/openid-connect/token| kc
+    gw -->|valida JWK Set + iss| kc
+    gw -->|/api/orders/** + X-Trace-Id| os
+    gw -->|/api/inventory/** + X-Trace-Id| inv
+    os -->|WebClient POST /api/inventory/reserve<br/>POST /api/inventory/release<br/>propaga X-Trace-Id, timeout 3s| inv
+    os --> odb
+    inv --> idb
+
+    classDef public fill:#1f6feb,stroke:#0d419d,color:#fff
+    classDef db fill:#2da44e,stroke:#116329,color:#fff
+    classDef auth fill:#bf3989,stroke:#8c2a63,color:#fff
+    class gw public
+    class odb,idb db
+    class kc auth
