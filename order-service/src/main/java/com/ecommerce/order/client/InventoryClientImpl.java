@@ -51,11 +51,12 @@ public class InventoryClientImpl implements InventoryClient {
     private Mono<Void> call(String path, UUID orderId, List<InventoryReservationItem> items) {
         return Mono.deferContextual(ctx -> {
             WebClient.RequestBodySpec bodySpec = inventoryWebClient.post().uri(path);
-            Object traceId = traceIdOf(ctx);
-            WebClient.RequestHeadersSpec<?> spec = traceId != null
-                    ? bodySpec.header(TraceIdWebFilter.HEADER, traceId.toString())
-                    : bodySpec.bodyValue(new InventoryReservationRequest(orderId, items));
-            return spec.retrieve()
+            String traceId = traceIdOf(ctx);
+            if (traceId != null) {
+                bodySpec.header(TraceIdWebFilter.HEADER, traceId);
+            }
+            return bodySpec.bodyValue(new InventoryReservationRequest(orderId, items))
+                    .retrieve()
                     .onStatus(status -> status == HttpStatus.CONFLICT,
                             response -> Mono.error(new StockInsufficientException()))
                     .onStatus(status -> status == HttpStatus.NOT_FOUND,
@@ -73,8 +74,8 @@ public class InventoryClientImpl implements InventoryClient {
         });
     }
 
-    private Object traceIdOf(ContextView ctx) {
-        return ctx.hasKey(TraceIdWebFilter.CONTEXT_KEY) ? ctx.get(TraceIdWebFilter.CONTEXT_KEY) : null;
+    private String traceIdOf(ContextView ctx) {
+        return ctx.getOrDefault(TraceIdWebFilter.CONTEXT_KEY, null);
     }
 
     private InventoryUnavailableException unavailable(Throwable cause) {

@@ -59,6 +59,31 @@ services:
       retries: 10
       start_period: 30s
 
+  order-service:
+    build: ./order-service
+    image: order-mgmt/order-service:latest
+    container_name: order-service
+    environment:
+      ORDER_DB_HOST: ${ORDER_DB_HOST:-orders-db}
+      ORDER_DB_PORT: ${ORDER_DB_PORT:-5432}
+      ORDER_DB_NAME: ${ORDERS_DB_NAME:-orders_db}
+      ORDER_DB_USER: ${ORDERS_DB_USER:-postgres}
+      ORDER_DB_PASSWORD: ${ORDERS_DB_PASSWORD:-postgres}
+      INVENTORY_BASE_URL: ${INVENTORY_BASE_URL:-http://inventory-service:8082}
+    depends_on:
+      orders-db:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.0.1
     container_name: keycloak

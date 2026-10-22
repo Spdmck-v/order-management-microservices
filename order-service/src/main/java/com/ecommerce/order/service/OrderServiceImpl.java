@@ -61,22 +61,25 @@ public class OrderServiceImpl implements OrderService {
                 .totalAmount(totalAmount)
                 .createdAt(now)
                 .updatedAt(now)
+                .newEntity(true)
                 .build();
 
+        // Tx 1 persists PENDING + items + history. The inventory call is not
+        // transactional and is not compensable, so it must run outside of it;
+        // CONFIRMED, FAILED and CANCELLED are therefore persisted afterwards in
+        // their own transactions, which never roll back the committed rows.
         return orderRepository.save(order)
-                .flatMap(saved -> {
-                    List<OrderItem> items = toEntities(saved.getId(), request);
-                    return orderItemRepository.saveAll(items)
-                            .collectList()
-                            .flatMap(persisted -> saveHistory(saved.getId(), null, OrderStatus.PENDING,
-                                    REASON_ORDER_CREATED)
-                                    .thenReturn(persisted))
-                            .flatMap(persisted -> inventoryClient
-                                    .reserve(saved.getId(), toReservationItems(request))
-                                    .then(Mono.defer(() -> confirmOrder(saved, persisted)))
-                                    .onErrorResume(error -> failOrder(saved, persisted, error).then(Mono.error(error))));
-                })
-                .as(transactionalOperator::transactional)
+                .doOnNext(saved -> saved.setNewEntity(false))
+                .flatMap(saved -> orderItemRepository.saveAll(toEntities(saved.getId(), request))
+                        .collectList()
+                        .flatMap(persisted -> saveHistory(saved.getId(), null, OrderStatus.PENDING,
+                                REASON_ORDER_CREATED)
+                                .thenReturn(persisted))
+                        .as(transactionalOperator::transactional)
+                        .flatMap(persisted -> inventoryClient
+                                .reserve(saved.getId(), toReservationItems(request))
+                                .then(Mono.defer(() -> confirmOrder(saved, persisted)))
+                                .onErrorResume(error -> failOrder(saved, error).then(Mono.error(error)))))
                 .doOnSuccess(response -> log.info("Order {} created for customer {} with status {}",
                         response.id(), response.customerId(), response.status()));
     }
@@ -107,14 +110,13 @@ public class OrderServiceImpl implements OrderService {
                             .collectList()
                             .flatMap(items -> {
                                 if (from == OrderStatus.PENDING) {
-                                    return transitionToCancelled(order, items);
+                                    return persistCancellation(order, items);
                                 }
                                 return inventoryClient.release(orderId, toReservationItems(items))
-                                        .then(Mono.defer(() -> transitionToCancelled(order, items)))
+                                        .then(Mono.defer(() -> persistCancellation(order, items)))
                                         .doOnSuccess(ignored -> log.info("Stock released for order {}", orderId));
                             });
                 })
-                .as(transactionalOperator::transactional)
                 .doOnSuccess(response -> log.info("Order {} cancelled from {}", response.id(), response.status()));
     }
 
@@ -123,15 +125,17 @@ public class OrderServiceImpl implements OrderService {
         order.setUpdatedAt(Instant.now());
         return orderRepository.save(order)
                 .then(saveHistory(order.getId(), OrderStatus.PENDING, OrderStatus.CONFIRMED, REASON_STOCK_RESERVED))
+                .as(transactionalOperator::transactional)
                 .thenReturn(orderMapper.toResponse(order, items));
     }
 
-    private Mono<Void> failOrder(Order order, List<OrderItem> items, Throwable error) {
+    private Mono<Void> failOrder(Order order, Throwable error) {
         log.warn("Order {} failed: {}", order.getId(), error.getMessage());
         order.setStatus(OrderStatus.FAILED);
         order.setUpdatedAt(Instant.now());
         return orderRepository.save(order)
                 .then(saveHistory(order.getId(), OrderStatus.PENDING, OrderStatus.FAILED, reasonFor(error)))
+                .as(transactionalOperator::transactional)
                 .then();
     }
 
@@ -141,6 +145,10 @@ public class OrderServiceImpl implements OrderService {
             case InventoryUnavailableException ignored -> REASON_INVENTORY_UNAVAILABLE;
             default -> "Order failed";
         };
+    }
+
+    private Mono<OrderResponse> persistCancellation(Order order, List<OrderItem> items) {
+        return transitionToCancelled(order, items).as(transactionalOperator::transactional);
     }
 
     private Mono<OrderResponse> transitionToCancelled(Order order, List<OrderItem> items) {
