@@ -1,5 +1,6 @@
 package com.ecommerce.order.service;
 
+import com.ecommerce.order.client.InventoryClient;
 import com.ecommerce.order.config.TraceIdWebFilter;
 import com.ecommerce.order.domain.Order;
 import com.ecommerce.order.domain.OrderItem;
@@ -7,9 +8,12 @@ import com.ecommerce.order.domain.OrderStatus;
 import com.ecommerce.order.domain.OrderStatusHistory;
 import com.ecommerce.order.domain.OrderStateMachine;
 import com.ecommerce.order.dto.CreateOrderRequest;
+import com.ecommerce.order.dto.InventoryReservationItem;
 import com.ecommerce.order.dto.OrderHistoryItem;
 import com.ecommerce.order.dto.OrderResponse;
+import com.ecommerce.order.exception.InventoryUnavailableException;
 import com.ecommerce.order.exception.OrderNotFoundException;
+import com.ecommerce.order.exception.StockInsufficientException;
 import com.ecommerce.order.mapper.OrderMapper;
 import com.ecommerce.order.repository.OrderItemRepository;
 import com.ecommerce.order.repository.OrderRepository;
@@ -18,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
@@ -31,7 +36,10 @@ import java.util.UUID;
 public class OrderServiceImpl implements OrderService {
 
     private static final String REASON_ORDER_CREATED = "Order created";
-    private static final String REASON_ORDER_CANCELLED = "Order cancelled by request";
+    private static final String REASON_STOCK_RESERVED = "Stock reserved";
+    private static final String REASON_INSUFFICIENT_STOCK = "Insufficient stock";
+    private static final String REASON_INVENTORY_UNAVAILABLE = "Inventory unavailable";
+    private static final String REASON_CANCELLED_BY_CUSTOMER = "Cancelled by customer";
     private static final String NO_TRACE = "NO-TRACE";
 
     private final OrderRepository orderRepository;
@@ -40,6 +48,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderStateMachine orderStateMachine;
     private final OrderMapper orderMapper;
     private final TransactionalOperator transactionalOperator;
+    private final InventoryClient inventoryClient;
 
     @Override
     public Mono<OrderResponse> create(CreateOrderRequest request) {
@@ -59,13 +68,17 @@ public class OrderServiceImpl implements OrderService {
                     List<OrderItem> items = toEntities(saved.getId(), request);
                     return orderItemRepository.saveAll(items)
                             .collectList()
-                            .flatMap(persistedItems -> saveHistory(saved.getId(), null, OrderStatus.PENDING,
+                            .flatMap(persisted -> saveHistory(saved.getId(), null, OrderStatus.PENDING,
                                     REASON_ORDER_CREATED)
-                                    .thenReturn(orderMapper.toResponse(saved, persistedItems)));
+                                    .thenReturn(persisted))
+                            .flatMap(persisted -> inventoryClient
+                                    .reserve(saved.getId(), toReservationItems(request))
+                                    .then(Mono.defer(() -> confirmOrder(saved, persisted)))
+                                    .onErrorResume(error -> failOrder(saved, persisted, error).then(Mono.error(error))));
                 })
                 .as(transactionalOperator::transactional)
-                .doOnSuccess(response -> log.info("Order {} created for customer {} with status PENDING",
-                        response.id(), response.customerId()));
+                .doOnSuccess(response -> log.info("Order {} created for customer {} with status {}",
+                        response.id(), response.customerId(), response.status()));
     }
 
     @Override
@@ -90,15 +103,53 @@ public class OrderServiceImpl implements OrderService {
                 .flatMap(order -> {
                     OrderStatus from = order.getStatus();
                     orderStateMachine.validate(from, OrderStatus.CANCELLED);
-                    order.setStatus(OrderStatus.CANCELLED);
-                    order.setUpdatedAt(Instant.now());
-                    return orderRepository.save(order)
-                            .then(saveHistory(orderId, from, OrderStatus.CANCELLED, REASON_ORDER_CANCELLED))
-                            .then(orderItemRepository.findAllByOrderIdOrderByIdAsc(orderId).collectList())
-                            .map(items -> orderMapper.toResponse(order, items));
+                    return orderItemRepository.findAllByOrderIdOrderByIdAsc(orderId)
+                            .collectList()
+                            .flatMap(items -> {
+                                if (from == OrderStatus.PENDING) {
+                                    return transitionToCancelled(order, items);
+                                }
+                                return inventoryClient.release(orderId, toReservationItems(items))
+                                        .then(Mono.defer(() -> transitionToCancelled(order, items)))
+                                        .doOnSuccess(ignored -> log.info("Stock released for order {}", orderId));
+                            });
                 })
                 .as(transactionalOperator::transactional)
                 .doOnSuccess(response -> log.info("Order {} cancelled from {}", response.id(), response.status()));
+    }
+
+    private Mono<OrderResponse> confirmOrder(Order order, List<OrderItem> items) {
+        order.setStatus(OrderStatus.CONFIRMED);
+        order.setUpdatedAt(Instant.now());
+        return orderRepository.save(order)
+                .then(saveHistory(order.getId(), OrderStatus.PENDING, OrderStatus.CONFIRMED, REASON_STOCK_RESERVED))
+                .thenReturn(orderMapper.toResponse(order, items));
+    }
+
+    private Mono<Void> failOrder(Order order, List<OrderItem> items, Throwable error) {
+        log.warn("Order {} failed: {}", order.getId(), error.getMessage());
+        order.setStatus(OrderStatus.FAILED);
+        order.setUpdatedAt(Instant.now());
+        return orderRepository.save(order)
+                .then(saveHistory(order.getId(), OrderStatus.PENDING, OrderStatus.FAILED, reasonFor(error)))
+                .then();
+    }
+
+    private String reasonFor(Throwable error) {
+        return switch (error) {
+            case StockInsufficientException ignored -> REASON_INSUFFICIENT_STOCK;
+            case InventoryUnavailableException ignored -> REASON_INVENTORY_UNAVAILABLE;
+            default -> "Order failed";
+        };
+    }
+
+    private Mono<OrderResponse> transitionToCancelled(Order order, List<OrderItem> items) {
+        OrderStatus from = order.getStatus();
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setUpdatedAt(Instant.now());
+        return orderRepository.save(order)
+                .then(saveHistory(order.getId(), from, OrderStatus.CANCELLED, REASON_CANCELLED_BY_CUSTOMER))
+                .thenReturn(orderMapper.toResponse(order, items));
     }
 
     private Mono<OrderResponse> findOrderWithItems(UUID orderId) {
@@ -136,6 +187,18 @@ public class OrderServiceImpl implements OrderService {
                         .quantity(item.quantity())
                         .unitPrice(item.unitPrice())
                         .build())
+                .toList();
+    }
+
+    private List<InventoryReservationItem> toReservationItems(CreateOrderRequest request) {
+        return request.items().stream()
+                .map(item -> new InventoryReservationItem(item.productId(), item.quantity()))
+                .toList();
+    }
+
+    private List<InventoryReservationItem> toReservationItems(List<OrderItem> items) {
+        return items.stream()
+                .map(item -> new InventoryReservationItem(item.getProductId(), item.getQuantity()))
                 .toList();
     }
 
