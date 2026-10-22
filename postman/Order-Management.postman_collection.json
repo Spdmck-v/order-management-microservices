@@ -1,0 +1,1043 @@
+{
+  "info": {
+    "_postman_id": "b1e7c2a0-4f3a-4c7e-8d21-9a5b0c1d2e3f",
+    "name": "Order Management",
+    "description": "Colección de pruebas para el API Gateway de Order Management (Order Service + Inventory Service + Keycloak). Autenticación OAuth2 password grant vía Keycloak, JWT validado por el Gateway.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [],
+  "variable": [],
+  "item": [
+    {
+      "name": "00 Auth",
+      "item": [
+        {
+          "name": "Get Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"access_token presente\", function () {",
+                  "    pm.expect(body.access_token).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  "pm.test(\"token_type bearer\", function () {",
+                  "    pm.expect(body.token_type).to.eql('Bearer');",
+                  "});",
+                  "if (body.access_token) {",
+                  "    pm.environment.set(\"token\", body.access_token);",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password",
+                  "type": "text"
+                },
+                {
+                  "key": "client_id",
+                  "value": "postman-client",
+                  "type": "text"
+                },
+                {
+                  "key": "username",
+                  "value": "{{username}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{keycloakUrl}}/realms/orders-realm/protocol/openid-connect/token",
+              "host": [
+                "{{keycloakUrl}}"
+              ],
+              "path": [
+                "realms",
+                "orders-realm",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
+            },
+            "description": "OAuth2 password grant contra Keycloak. Guarda el access_token en la variable de entorno `token`."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 Inventory",
+      "item": [
+        {
+          "name": "Listar productos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"lista de productos\", function () {",
+                  "    pm.expect(Array.isArray(body)).to.be.true;",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/products?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Lista paginada de productos de inventario."
+          },
+          "response": []
+        },
+        {
+          "name": "Detalle de producto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"producto con id esperado\", function () {",
+                  "    pm.expect(body.id).to.eql(pm.environment.get('productId'));",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "products",
+                "{{productId}}"
+              ]
+            },
+            "description": "Detalle del producto conocido."
+          },
+          "response": []
+        },
+        {
+          "name": "Producto inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code PRODUCT_NOT_FOUND\", function () {",
+                  "    pm.expect(body.code).to.eql('PRODUCT_NOT_FOUND');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/products/99999999-9999-4999-8b2d-999999999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "products",
+                "99999999-9999-4999-8b2d-999999999999"
+              ]
+            },
+            "description": "Error esperado: 404 con código PRODUCT_NOT_FOUND y traceId."
+          },
+          "response": []
+        },
+        {
+          "name": "Reserve",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"11111111-2222-4333-8444-111111111111\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/reserve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "reserve"
+              ]
+            },
+            "description": "Reserva atómica de stock con orderId para idempotencia."
+          },
+          "response": []
+        },
+        {
+          "name": "Release",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"11111111-2222-4333-8444-111111111111\",\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/inventory/release",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inventory",
+                "release"
+              ]
+            },
+            "description": "Libera stock previamente reservado."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Orders",
+      "item": [
+        {
+          "name": "Crear pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"estado CONFIRMED\", function () {",
+                  "    pm.expect(body.status).to.eql('CONFIRMED');",
+                  "});",
+                  "pm.test(\"id presente\", function () {",
+                  "    pm.expect(body.id).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  "if (body.id) {",
+                  "    pm.environment.set(\"orderId\", body.id);",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Crea un pedido PENDING que debe quedar CONFIRMED si Inventory reserva stock. Guarda el id en la variable `orderId`."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"id coincide con orderId\", function () {",
+                  "    pm.expect(body.id).to.eql(pm.environment.get('orderId'));",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}"
+              ]
+            },
+            "description": "Consulta el pedido creado."
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar historial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"historial presente\", function () {",
+                  "    pm.expect(body).to.not.be.empty;",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "history"
+              ]
+            },
+            "description": "Historial de cambios de estado del pedido (order_status_history)."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancelar pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"estado CANCELLED\", function () {",
+                  "    pm.expect(body.status).to.eql('CANCELLED');",
+                  "});",
+                  "pm.test(\"X-Trace-Id presente\", function () {",
+                  "    pm.expect(pm.response.headers.get('X-Trace-Id')).to.not.be.null;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "cancel"
+              ]
+            },
+            "description": "Cancela el pedido CONFIRMED y libera stock en Inventory."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancelar de nuevo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code INVALID_STATE_TRANSITION\", function () {",
+                  "    pm.expect(body.code).to.eql('INVALID_STATE_TRANSITION');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/{{orderId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "{{orderId}}",
+                "cancel"
+              ]
+            },
+            "description": "Error esperado: segundo cancel desde CANCELLED → 409 INVALID_STATE_TRANSITION."
+          },
+          "response": []
+        },
+        {
+          "name": "Pedido inexistente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code ORDER_NOT_FOUND\", function () {",
+                  "    pm.expect(body.code).to.eql('ORDER_NOT_FOUND');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/00000000-0000-4000-8000-000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders",
+                "00000000-0000-4000-8000-000000000000"
+              ]
+            },
+            "description": "Error esperado: 404 con código ORDER_NOT_FOUND y traceId."
+          },
+          "response": []
+        },
+        {
+          "name": "Pedido con stock insuficiente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code STOCK_INSUFFICIENT\", function () {",
+                  "    pm.expect(body.code).to.eql('STOCK_INSUFFICIENT');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{lowStockProductId}}\",\n      \"quantity\": 999\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Producto con poco stock y cantidad alta: el pedido queda FAILED y se responde 409 STOCK_INSUFFICIENT."
+          },
+          "response": []
+        },
+        {
+          "name": "Body inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code INVALID_REQUEST\", function () {",
+                  "    pm.expect(body.code).to.eql('INVALID_REQUEST');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Error esperado: 400 con código INVALID_REQUEST y traceId."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Security",
+      "item": [
+        {
+          "name": "Sin token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code INVALID_TOKEN\", function () {",
+                  "    pm.expect(body.code).to.eql('INVALID_TOKEN');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Error esperado: petición sin Authorization → 401 en el formato de error estándar del Gateway."
+          },
+          "response": []
+        },
+        {
+          "name": "Token inválido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 Unauthorized\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code INVALID_TOKEN\", function () {",
+                  "    pm.expect(body.code).to.eql('INVALID_TOKEN');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "invalid-token-value",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Error esperado: Bearer token corrupto → 401 INVALID_TOKEN."
+          },
+          "response": []
+        },
+        {
+          "name": "Ruta inexistente con token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 Not Found\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test(\"code NOT_FOUND\", function () {",
+                  "    pm.expect(body.code).to.eql('NOT_FOUND');",
+                  "});",
+                  "pm.test(\"traceId presente\", function () {",
+                  "    pm.expect(body.traceId).to.be.a('string').and.to.not.be.empty;",
+                  "});",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/does-not-exist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "does-not-exist"
+              ]
+            },
+            "description": "Error esperado: ruta común con token válido → 404 con código NOT_FOUND (nivel Gateway)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Tracking",
+      "item": [
+        {
+          "name": "Crear pedido con X-Trace-Id fijo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"X-Trace-Id de la respuesta igual al enviado\", function () {",
+                  "   pm.expect(pm.response.headers.get('X-Trace-Id')).to.eql('traceid-fixed-0000000000000001');",
+                  "});",
+                  "var body = pm.response.json();",
+                  "if (body.id) {",
+                  "    pm.environment.set(\"orderId\", body.id);",
+                  "}",
+                  ""
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Trace-Id",
+                "value": "traceid-fixed-0000000000000001"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "orders"
+              ]
+            },
+            "description": "Envía un X-Trace-Id fijo a través del Gateway y verifica que la respuesta lo devuelve intacto (propagación end-to-end)."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
