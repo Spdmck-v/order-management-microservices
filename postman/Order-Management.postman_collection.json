@@ -893,17 +893,15 @@
           ],
           "request": {
             "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "invalid-token-value",
-                  "type": "string"
-                }
-              ]
+              "type": "noauth"
             },
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer abc.def.ghi"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/orders",
               "host": [
