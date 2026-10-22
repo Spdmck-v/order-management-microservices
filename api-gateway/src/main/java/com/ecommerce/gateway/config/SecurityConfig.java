@@ -57,6 +57,8 @@ public class SecurityConfig {
                 .logout(ServerHttpSecurity.LogoutSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/actuator/health").permitAll()
+                        .pathMatchers("/v3/api-docs/**", "/docs/**", "/swagger-ui/**", "/swagger-ui.html",
+                                "/webjars/**").permitAll()
                         .pathMatchers("/api/**").authenticated()
                         .anyExchange().denyAll())
                 .oauth2ResourceServer(oauth2 -> oauth2

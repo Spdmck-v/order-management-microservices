@@ -19,12 +19,33 @@ spring:
               uri: ${INVENTORY_SERVICE_URI:http://inventory-service:8082}
               predicates:
                 - Path=/api/inventory/**
+            - id: order-service-docs
+              uri: ${ORDER_SERVICE_URI:http://order-service:8081}
+              predicates:
+                - Path=/docs/order-service/v3/api-docs/**
+              filters:
+                - RewritePath=/docs/order-service/(?<segment>.*), /$\{segment}
+            - id: inventory-service-docs
+              uri: ${INVENTORY_SERVICE_URI:http://inventory-service:8082}
+              predicates:
+                - Path=/docs/inventory-service/v3/api-docs/**
+              filters:
+                - RewritePath=/docs/inventory-service/(?<segment>.*), /$\{segment}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Order Service
+        url: /docs/order-service/v3/api-docs
+      - name: Inventory Service
+        url: /docs/inventory-service/v3/api-docs
 
 app:
   security:
