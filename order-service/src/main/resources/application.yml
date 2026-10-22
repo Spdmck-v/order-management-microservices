@@ -1,0 +1,32 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: order-service
+  reactor:
+    context-propagation: auto
+  r2dbc:
+    url: r2dbc:postgresql://${ORDER_DB_HOST:localhost}:${ORDER_DB_PORT:5433}/${ORDER_DB_NAME:orders_db}
+    username: ${ORDER_DB_USER:postgres}
+    password: ${ORDER_DB_PASSWORD:postgres}
+    pool:
+      enabled: true
+      initial-size: 2
+      max-size: 10
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/schema.sql
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui

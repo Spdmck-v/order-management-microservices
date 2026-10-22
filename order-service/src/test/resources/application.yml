@@ -1,0 +1,14 @@
+spring:
+  reactor:
+    context-propagation: auto
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5433/orders_db_test
+    username: postgres
+    password: postgres
+  sql:
+    init:
+      mode: never
+
+logging:
+  pattern:
+    console: "%d %-5level [%X{traceId:-NO-TRACE}] %logger{36} - %msg%n"
