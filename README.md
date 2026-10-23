@@ -227,7 +227,7 @@ Insertados de forma idempotente por el script `sql/schema.sql` de Inventory:
 
 `PENDING → CONFIRMED | FAILED | CANCELLED` · `CONFIRMED → CANCELLED`. Cualquier otra transición responde **409 INVALID_STATE_TRANSITION**. Cada cambio guarda una fila en `order_status_history` (`from`, `to`, `reason`, `trace_id`, `changed_at`).
 
-Diagrams:
+Flujos:
 
 - Crear: se persiste PENDING (Tx 1), luego se llama a Inventory **fuera de la transacción**. Reserva OK → CONFIRMED (Tx 2). Stock insuficiente → FAILED + respuesta 409 STOCK_INSUFFICIENT. Inventory caído/timeout → FAILED + respuesta 503 INVENTORY_UNAVAILABLE.
 - Cancelar: solo desde **PENDING** o **CONFIRMED**. Desde CONFIRMED libera el stock en Inventory (*release*) antes de persistir el CANCELLED. Desde CANCELLED o FAILED → 409.
@@ -297,10 +297,36 @@ Fuentes Mermaid y PNG equivalentes en `docs/diagrams/`:
 | 07 | Secuencia cancelar pedido | `07-secuencia-cancelar-pedido.mmd` | `07-secuencia-cancelar-pedido.png` |
 | 08 | Secuencia token inválido | `08-secuencia-token-invalido.mmd` | `08-secuencia-token-invalido.png` |
 
+### Diagramas embebidos
+
+![Arquitectura de componentes](docs/diagrams/01-arquitectura-componentes.png)
+*Arquitectura general: Gateway como único punto público, servicios internos, Keycloak y bases de datos independientes.*
+
+![Secuencia crear pedido](docs/diagrams/02-secuencia-crear-pedido.png)
+*Flujo feliz de creación: pedido PENDING, reserva en Inventory y confirmación con trazas.*
+
+![Secuencia sin stock / Inventory caído](docs/diagrams/03-secuencia-sin-stock.png)
+*Fallos en la reserva: stock insuficiente (409) o Inventory caído/timeout (503), con pedido en FAILED.*
+
+![Máquina de estados](docs/diagrams/04-maquina-estados.png)
+*Transiciones válidas entre PENDING, CONFIRMED, CANCELLED y FAILED; cualquier otra devuelve 409.*
+
+![Clases de dominio](docs/diagrams/05-clases-dominio.png)
+*Clases de dominio de Order Service: pedido, items, historial de estados y máquina de estados.*
+
+![Modelo ER](docs/diagrams/06-modelo-er.png)
+*Modelo entidad-relación de ambas bases: orders_db e inventory_db, sin FK entre bases.*
+
+![Secuencia cancelar pedido](docs/diagrams/07-secuencia-cancelar-pedido.png)
+*Cancelación desde CONFIRMED: liberación de stock en Inventory antes de persistir CANCELLED.*
+
+![Secuencia token inválido](docs/diagrams/08-secuencia-token-invalido.png)
+*Rechazo en el Gateway de un token ausente, expirado o con issuer incorrecto (401 con trace id).*
+
 ## Tests
 
 ```bash
-# En cada servicio (requiere Java 21 + Maven wrapper; H2/Testcontainers según el servicio)
+# En cada servicio (requiere Java 21 + Maven wrapper)
 cd order-service     && ./mvnw test        # (Windows: .\mvnw.cmd test)
 cd inventory-service && ./mvnw test        # JUnit 5, Mockito, StepVerifier, WebTestClient
 cd api-gateway       && ./mvnw test
