@@ -24,10 +24,12 @@ public class TraceIdWebFilter implements WebFilter {
     public static final String HEADER = "X-Trace-Id";
     public static final String CONTEXT_KEY = "traceId";
 
+    private static final String VALID_TRACE_ID = "^[A-Za-z0-9._-]{1,64}$";
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String traceId = exchange.getRequest().getHeaders().getFirst(HEADER);
-        if (traceId == null || traceId.isBlank()) {
+        if (traceId == null || !traceId.matches(VALID_TRACE_ID)) {
             traceId = UUID.randomUUID().toString();
         }
         exchange.getResponse().getHeaders().set(HEADER, traceId);

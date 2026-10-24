@@ -68,4 +68,17 @@ class GatewaySecurityTests {
                 .exchange()
                 .expectStatus().isOk();
     }
+
+    @Test
+    void oversizedTraceIdIsIgnoredAndReplacedWithGeneratedUuid() {
+        String oversizedTraceId = "a".repeat(100);
+
+        webTestClient.get().uri("/actuator/health")
+                .header("X-Trace-Id", oversizedTraceId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().value("X-Trace-Id", value -> assertThat(value)
+                        .isNotEqualTo(oversizedTraceId)
+                        .matches("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
+    }
 }

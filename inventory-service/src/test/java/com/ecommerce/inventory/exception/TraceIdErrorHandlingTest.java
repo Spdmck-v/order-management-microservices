@@ -94,6 +94,22 @@ class TraceIdErrorHandlingTest {
     }
 
     @Test
+    void oversizedTraceIdIsIgnoredAndReplacedWithGeneratedUuid() {
+        String oversizedTraceId = "a".repeat(100);
+
+        client.get()
+                .uri("/v3/api-docs")
+                .header(TraceIdWebFilter.HEADER, oversizedTraceId)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().value("X-Trace-Id", value -> {
+                    org.junit.jupiter.api.Assertions.assertNotNull(value);
+                    org.junit.jupiter.api.Assertions.assertTrue(GENERATED_TRACE_ID.matcher(value).matches(),
+                            "oversized incoming trace id should be ignored and replaced with a UUID but was: " + value);
+                });
+    }
+
+    @Test
     void invalidReserveBodyReturnsBadRequestWithValidationDetails() {
         when(inventoryService.reserve(any())).thenReturn(Mono.empty());
 

@@ -32,6 +32,8 @@ public class TraceIdWebFilter implements WebFilter {
 
     private static final Logger log = LoggerFactory.getLogger(TraceIdWebFilter.class);
 
+    private static final String VALID_TRACE_ID = "^[A-Za-z0-9._-]{1,64}$";
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         String traceId = resolveTraceId(exchange.getRequest());
@@ -59,7 +61,7 @@ public class TraceIdWebFilter implements WebFilter {
 
     private String resolveTraceId(ServerHttpRequest request) {
         String traceId = request.getHeaders().getFirst(HEADER);
-        if (traceId != null && !traceId.isBlank()) {
+        if (traceId != null && traceId.matches(VALID_TRACE_ID)) {
             return traceId;
         }
         return UUID.randomUUID().toString();
